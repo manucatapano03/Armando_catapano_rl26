@@ -72,6 +72,7 @@ RUN apt-get update -o Acquire::Retries=5 && apt-get install -y --no-install-reco
     ros-humble-moveit-ros-move-group \
     ros-humble-moveit-plugins \
     ros-humble-moveit-kinematics \
+    ros-humble-aruco-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # Build workspace

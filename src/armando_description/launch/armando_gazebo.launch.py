@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -23,15 +23,20 @@ def generate_launch_description():
         default_value='true',
     )
 
-    # Variabili d'ambiente per Gazebo Harmonic
+    # Variabili d'ambiente per Gazebo
     gz_resource_path = SetEnvironmentVariable(
         name='GZ_SIM_RESOURCE_PATH',
         value=os.path.join(pkg_share, 'worlds') + ':' + os.path.join(pkg_share, 'models') + ':' + os.path.dirname(pkg_share) 
     )
 
+    ign_resource_path = SetEnvironmentVariable(
+        name='IGN_GAZEBO_RESOURCE_PATH',
+        value=os.path.join(pkg_share, 'worlds') + ':' + os.path.join(pkg_share, 'models') + ':' + os.path.dirname(pkg_share) 
+    )
+
     gz_gui_config_path = SetEnvironmentVariable(
         name='GZ_GUI_CONFIG_PATH',
-        value=os.path.join(pkg_share, 'conf', 'gazebo.config')
+        value=os.path.join(pkg_share, 'config', 'gazebo.config')
     )
 
     # Argomento per avviare Gazebo con GUI
@@ -67,7 +72,7 @@ def generate_launch_description():
         parameters=[robot_description_param, {'use_sim_time': True}],
     )
 
-    # Launch di Gazebo Harmonic
+    # Launch di Gazebo
     gazebo_launch = IncludeLaunchDescription(
         PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py']),
         launch_arguments={
@@ -82,14 +87,21 @@ def generate_launch_description():
         executable='create',
         name='urdf_spawner',
         arguments=[
+            '-world', 'armando_workbench',
             '-topic', '/robot_description',
-            '-entity', 'armando',
+            '-name', 'armando',
             '-x', '0.0',
             '-y', '0.0',
             '-z', '0.44',
             '-allow_renaming', 'true'
         ],
         output='screen',
+    )
+
+    # Ritardo per permettere a Gazebo di caricare completamente il mondo prima dello spawn
+    delayed_spawn_robot = TimerAction(
+        period=4.0,
+        actions=[spawn_robot_node]
     )
 
     # Spawner del joint state broadcaster
@@ -106,11 +118,12 @@ def generate_launch_description():
         arguments=['joint_trajectory_controller', '--controller-manager', '/controller_manager'],
     )
 
-    # ==== CRUCIALE: Bridge ROS <-> Gazebo pulito e sicuro ====
+    # Bridge ROS <-> Gazebo
     bridge_node = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         arguments=[
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
             '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
         ],
@@ -121,6 +134,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
     )
+
     # Event handlers: Avvio sequenziale dei controller
     load_joint_state_broadcaster = RegisterEventHandler(
         event_handler=OnProcessExit(
@@ -139,12 +153,13 @@ def generate_launch_description():
     return LaunchDescription([
         declare_use_sim_time,
         gz_resource_path,
+        ign_resource_path,
         gz_gui_config_path,
         robot_state_publisher_node,
         gui_arg,
         world_arg,
         gazebo_launch,
-        spawn_robot_node,
+        delayed_spawn_robot,
         load_joint_state_broadcaster,
         load_joint_trajectory_controller,
         bridge_node,

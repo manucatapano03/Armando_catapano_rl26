@@ -20,6 +20,7 @@ find_package(orocos_kdl REQUIRED)
 find_package(urdf REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(aruco_msgs REQUIRED)
 # ------------------------------------------------------
 
 include_directories(include)
@@ -27,6 +28,7 @@ include_directories(include)
 add_executable(armando_controller_node 
   src/armando_controller_node.cpp 
   src/pose_loader.cpp
+  
 )
 ament_target_dependencies(armando_controller_node 
   rclcpp 
@@ -37,6 +39,20 @@ ament_target_dependencies(armando_controller_node
   ament_index_cpp
 )
 target_link_libraries(armando_controller_node yaml-cpp)
+
+add_executable(armando_marker_adapter 
+  src/armando_marker_adapter.cpp
+)
+ament_target_dependencies(armando_marker_adapter 
+  rclcpp 
+  std_msgs 
+  aruco_msgs 
+  geometry_msgs
+  kdl_parser
+  tf2_ros
+  tf2_geometry_msgs
+)
+target_link_libraries(armando_marker_adapter orocos-kdl)
 
 add_executable(armando_pick_place_node 
   src/armando_pick_and_place.cpp
@@ -69,6 +85,7 @@ install(TARGETS
   armando_controller_node
   armando_pick_place_node
   armando_ik_kdl_node
+  armando_marker_adapter
   DESTINATION lib/${PROJECT_NAME}
 )
 
